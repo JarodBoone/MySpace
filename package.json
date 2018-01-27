@@ -1,0 +1,29 @@
+{
+  "name": "myspace",
+  "version": "1.0.0",
+  "description": "Hack at brown 2018 project. No relation to Myspace.com",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JarodBoone/MySpace.git"
+  },
+  "author": "Jarod Boone, Catherine Habgood, Duncan McManus",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JarodBoone/MySpace/issues"
+  },
+  "homepage": "https://github.com/JarodBoone/MySpace#readme",
+  "dependencies": {
+    "express": "^4.16.2"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-clean": "^0.4.0",
+    "gulp-concat": "^2.6.1",
+    "gulp-rename": "^1.2.2",
+    "gulp-uglify": "^3.0.0"
+  }
+}
