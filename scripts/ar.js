@@ -1,10 +1,23 @@
-// Put javascript code here lol 
-var vrDisplay, vrControls, arView;
-var canvas, camera, scene, renderer;
-var BOX_DISTANCE = 1.5;
-var BOX_SIZE = 0.25;
-var BOX_QUANTITY = 6;
-var boxesAdded = false;
+
+var vrDisplay;
+var vrFrameData;
+var vrControls;
+var arView;
+var canvas;
+var camera;
+var scene;
+var renderer;
+var cube;
+var colors = [
+    new THREE.Color(0xffffff),
+    new THREE.Color(0xffff00),
+    new THREE.Color(0xff00ff),
+    new THREE.Color(0xff0000),
+    new THREE.Color(0x00ffff),
+    new THREE.Color(0x00ff00),
+    new THREE.Color(0x0000ff),
+    new THREE.Color(0x000000)
+];
 /**
  * Use the `getARDisplay()` utility to leverage the WebVR API
  * to see if there are any AR-capable WebVR VRDisplays. Returns
@@ -13,6 +26,7 @@ var boxesAdded = false;
  */
 THREE.ARUtils.getARDisplay().then(function (display) {
     if (display) {
+        vrFrameData = new VRFrameData();
         vrDisplay = display;
         init();
     } else {
@@ -20,9 +34,13 @@ THREE.ARUtils.getARDisplay().then(function (display) {
     }
 });
 function init() {
+    // Turn on the debugging panel
+    var arDebug = new THREE.ARDebug(vrDisplay);
+    document.body.appendChild(arDebug.getElement());
     // Setup the three.js rendering environment
     renderer = new THREE.WebGLRenderer({ alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
+    console.log('setRenderer size', window.innerWidth, window.innerHeight);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.autoClear = false;
     canvas = renderer.domElement;
@@ -48,8 +66,22 @@ function init() {
     // orientation/position to the perspective camera, keeping our
     // real world and virtual world in sync.
     vrControls = new THREE.VRControls(camera);
+    // Create the cube geometry that we'll copy and place in the
+    // scene when the user clicks the screen
+    var geometry = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+    var faceIndices = ['a', 'b', 'c'];
+    for (var i = 0; i < geometry.faces.length; i++) {
+        var f = geometry.faces[i];
+        for (var j = 0; j < 3; j++) {
+            var vertexIndex = f[faceIndices[j]];
+            f.vertexColors[j] = colors[vertexIndex];
+        }
+    }
+    var material = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors });
+    cube = new THREE.Mesh(geometry, material);
     // Bind our event handlers
     window.addEventListener('resize', onWindowResize, false);
+    canvas.addEventListener('touchstart', onClick, false);
     // Kick off the render loop!
     update();
 }
@@ -66,14 +98,11 @@ function update() {
     // Update our camera projection matrix in the event that
     // the near or far planes have updated
     camera.updateProjectionMatrix();
+    // From the WebVR API, populate `vrFrameData` with
+    // updated information for the frame
+    vrDisplay.getFrameData(vrFrameData);
     // Update our perspective camera's positioning
     vrControls.update();
-    // If we have not added boxes yet, and we have positional
-    // information applied to our camera (it can take a few seconds),
-    // and the camera's Y position is not undefined or 0, create boxes
-    if (!boxesAdded && !camera.position.y) {
-        addBoxes();
-    }
     // Render our three.js virtual scene
     renderer.clearDepth();
     renderer.render(scene, camera);
@@ -87,24 +116,40 @@ function update() {
  * projection matrix provided from the device
  */
 function onWindowResize() {
+    console.log('setRenderer size', window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 /**
- * Once we have position information applied to our camera,
- * create some boxes at the same height as the camera
+ * When clicking on the screen, create a cube at the user's
+ * current position.
  */
-function addBoxes() {
-    // Create some cubes around the origin point
-    for (var i = 0; i < BOX_QUANTITY; i++) {
-        var angle = Math.PI * 2 * (i / BOX_QUANTITY);
-        var geometry = new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE);
-        var material = new THREE.MeshNormalMaterial();
-        var cube = new THREE.Mesh(geometry, material);
-        cube.position.set(Math.cos(angle) * BOX_DISTANCE, camera.position.y - 0.25, Math.sin(angle) * BOX_DISTANCE);
-        scene.add(cube);
-    }
-    // Flip this switch so that we only perform this once
-    boxesAdded = true;
+function onClick() {
+    // Fetch the pose data from the current frame
+    var pose = vrFrameData.pose;
+    // Convert the pose orientation and position into
+    // THREE.Quaternion and THREE.Vector3 respectively
+    var ori = new THREE.Quaternion(
+        pose.orientation[0],
+        pose.orientation[1],
+        pose.orientation[2],
+        pose.orientation[3]
+    );
+    var pos = new THREE.Vector3(
+        pose.position[0],
+        pose.position[1],
+        pose.position[2]
+    );
+    var dirMtx = new THREE.Matrix4();
+    dirMtx.makeRotationFromQuaternion(ori);
+    var push = new THREE.Vector3(0, 0, -1.0);
+    push.transformDirection(dirMtx);
+    pos.addScaledVector(push, 0.125);
+    // Clone our cube object and place it at the camera's
+    // current position
+    var clone = cube.clone();
+    scene.add(clone);
+    clone.position.copy(pos);
+    clone.quaternion.copy(ori);
 }

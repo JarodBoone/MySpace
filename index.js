@@ -24,18 +24,18 @@ const backup_port = process.env.port || 3011;
 // });
 
 //set view engine to ejs but parse plain html  
-app.engine('html', ejs.renderFile);
-app.set('view engine', 'html');
+// app.engine('html', ejs.renderFile);
+// app.set('view engine', 'html');
 
 //static asset requests to public
 //app.use('/assets', express.static(path.join(__dirname, 'public')));
 
 //use middleware 
-app.use(bp.json());
-app.use(bp.urlencoded({ extended: true }));
+// app.use(bp.json());
+// app.use(bp.urlencoded({ extended: true }));
 
 app.get('/',function(req,res,err) { 
-    res.render('index'); 
+    res.sendFile(path.join(__dirname,'./views/b.html')); 
 })
 
 //start server 
