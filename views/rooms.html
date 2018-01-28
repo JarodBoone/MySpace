@@ -82,32 +82,44 @@
             <a href="https://developers.google.com/ar/develop/web/getting-started#examples">examples</a>
         </span>
     </div>
-    <select>
-        <option value="volvo">Volvo</option>
-        <option value="saab">Saab</option>
-        <option value="mercedes">Mercedes</option>
-        <option value="audi">Audi</option>
+    <select class="objSelector">
+        <option value="0">Plant</option>
+        <option value="1">Christ</option>
+        <option value="2">C3PO</option>
+        <option value="3">Show me de tubbs</option>
     </select>
     <script src="../third_party/three.js/three.js"></script>
     <script src="../third_party/three.js/VRControls.js"></script>
     <script src="../dist/three.ar.js"></script>
 
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"
+        integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous"></script>
+
     <script src="../third_party/three.js/OBJLoader.js"></script>
     <script src="../third_party/three.js/MTLLoader.js"></script>
-    <script src="../third_party/three.ar.js"></script>
     <script>
     
-    var vrDisplay, vrControls, arView;
+    var vrDisplay, vrControls, arView, vrFrameData;
+    var ROOM_OBJ_PATH = '../models/whiteRoom.obj';
+    var ROOM_MTL_PATH = '../models/whiteRoom.mtl';
     var canvas, camera, scene, renderer;
-    var CHRIST_DISTANCE = 1.5;
-    var CHRIST_QUANTITY = 3;
-    var christAdded = false;
+    var ROOM_DISTANCE = 1.5;
+    var ROOM_QUANTITY = 1;
+    var roomAdded = false;
     var model;
-    var christGroup;
-    var BOX_DISTANCE = 1.5;
-    var BOX_SIZE = 0.25;
-    var BOX_QUANTITY = 6;
-    var boxesAdded = false;
+    var roomModel;
+    var roomGroup;
+    var toLoad = ["../models/plant1.obj", "../models/plant1.mtl", 0.5];
+    var prevModel;
+
+    var models = [
+        ["../models/plant1.obj", "../models/plant1.mtl", 0.5],
+        ["../models/christ.obj", "../models/christ.mtl", .1], 
+        ["../models/c3po.obj", "../models/c3po.mtl", 0.8],
+        ["../models/tubbs.obj", "../models/tubbs.mtl", 0.5]
+    ]
+
     
 
         /**
@@ -118,6 +130,7 @@
          */
         THREE.ARUtils.getARDisplay().then(function (display) {
             if (display) {
+                vrFrameData = new VRFrameData();
                 vrDisplay = display;
                 init();
             } else {
@@ -155,9 +168,20 @@
             vrControls = new THREE.VRControls(camera);
             // Bind our event handlers
             window.addEventListener('resize', onWindowResize, false);
+            $(canvas).click(onClick);
+            //loadRoomModel();
+            $('.objSelector').change(function(event) {
+                var index = $(event.target).val(); 
+                toLoad = models[index];
+                loadModel();
+            })
+            
             // Kick off the render loop!
             addLights();
-            loadChristModel();
+            //loadRoomModel();
+            $('.objSelector').css({'z-index' : '9999'});
+            $(canvas).css({'z-index' : '-1000'});
+            loadModel();
             update();
         }
         /**
@@ -174,6 +198,7 @@
             // the near or far planes have updated
             camera.updateProjectionMatrix();
             // Update our perspective camera's positioning
+            vrDisplay.getFrameData(vrFrameData);
             vrControls.update();
             // If we have not added boxes yet, and we have positional
             // information applied to our camera (it can take a few seconds),
@@ -210,56 +235,50 @@
             scene.add(directionalLight);
         }
 
-        var OBJ_PATH = '../models/model.obj';
-        var MTL_PATH = '../models/materials.mtl';
-        var SCALE = .1;
 
-        function loadChristModel() {
-        THREE.ARUtils.loadModel({
-            objPath: OBJ_PATH,
-            mtlPath: MTL_PATH
-        // .then(function ...) is used with 'Promise's. A promise
-        // is an object that holds another object, which may not be
-        // ready for use right away (contained object is asynchronous).
-        // Therefore, when the inner object is ready, the '.then(function ...'
-        // is able to run. The parameter to the function is the completed
-        // object.
-        }).then(function(group) {
-            // model is going to be an THREE.Object3D
-            model = group;
-            // As OBJ models may contain a group with several meshes,
-            // we want all of them to cast shadow
-            model.children.forEach(function(mesh) {
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
+        function loadRoomModel() {
+            THREE.ARUtils.loadModel({
+                objPath: ROOM_OBJ_PATH,
+                mtlPath: ROOM_MTL_PATH
+            // .then(function ...) is used with 'Promise's. A promise
+            // is an object that holds another object, which may not be
+            // ready for use right away (contained object is asynchronous).
+            // Therefore, when the inner object is ready, the '.then(function ...'
+            // is able to run. The parameter to the function is the completed
+            // object.
+            }).then(function(tempModel) {
+                // model is going to be an THREE.Object3D
+                roomModel = tempModel;
+                // As OBJ models may contain a group with several meshes,
+                // we want all of them to cast shadow
+                roomModel.children.forEach(function(mesh) {
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                });
+
+                roomModel.scale.set( 10,  10,  10);
+                addRoom();
             });
-
-            model.scale.set(SCALE, SCALE, SCALE);
-            addChrist();
-        });
         }
 
         /**
          * Once we have position information applied to our camera,
          * create some boxes at the same height as the camera
          */
-        function addChrist() {
-            christGroup = new THREE.Group();
-            for (var i = 0; i < CHRIST_QUANTITY; i++) {
-                var angle = Math.PI * 2 * (i / CHRIST_QUANTITY);
-                var clone = model.clone();
+        function addRoom() {
+            // var clone = model.clone();
 
-                // ************* STEP 7 ***************
-                // * Models face the camera by changing rotation about
-                // * the y-axis.
-                // ************************************
-                // clone.rotation.y = -angle;
-                // note that 0.0 (for height) will be around the height of your phone at init
-                clone.position.set(Math.cos(angle) * CHRIST_DISTANCE, 0.0, Math.sin(angle) * CHRIST_DISTANCE);
-                christGroup.add(clone);
-            }
+            // ************* STEP 7 ***************
+            // * Models face the camera by changing rotation about
+            // * the y-axis.
+            // ************************************
+            // clone.rotation.y = -angle;
+            // note that 0.0 (for height) will be around the height of your phone at init
+            roomModel.position.set(0, 0.0, -.5);
+            // roomGroup.add(clone);
+            
 
-            scene.add(christGroup);
+            scene.add(roomModel);
 
 
 
@@ -281,7 +300,42 @@
             //     scene.add(cube);
             // }
             // Flip this switch so that we only perform this once
-            christAdded = true;
+            roomAdded = true;
+        }
+
+        function loadModel(){
+            THREE.ARUtils.loadModel({
+                objPath: toLoad[0],
+                mtlPath: toLoad[1]
+            // .then(function ...) is used with 'Promise's. A promise
+            // is an object that holds another object, which may not be
+            // ready for use right away (contained object is asynchronous).
+            // Therefore, when the inner object is ready, the '.then(function ...'
+            // is able to run. The parameter to the function is the completed
+            // object.
+            }).then(function(tempModel) {
+                // model is going to be an THREE.Object3D
+                model = tempModel;
+                // As OBJ models may contain a group with several meshes,
+                // we want all of them to cast shadow
+                model.children.forEach(function(mesh) {
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                });
+
+                model.scale.set(toLoad[2], toLoad[2], toLoad[2]);
+            });
+        }
+
+        function addModel(){
+            if(prevModel){
+                scene.remove(prevModel); 
+            }
+            var clone = model.clone();
+            clone.position.set(0, 0, -1);
+            scene.add(clone);
+            prevModel = clone;
+
         }
 
     /**
@@ -303,10 +357,45 @@
         // boxesAdded = true;
         // }
 
+    function onClick () {
+        // Fetch the pose data from the current frame
+        var pose = vrFrameData.pose;
+        
+        // Convert the pose orientation and position into
+        // THREE.Quaternion and THREE.Vector3 respectively
+        var ori = new THREE.Quaternion(
+            pose.orientation[0],
+            pose.orientation[1],
+            pose.orientation[2],
+            pose.orientation[3]
+        );
+        
+        var pos = new THREE.Vector3(
+            pose.position[0],
+            pose.position[1],
+            pose.position[2]
+        );
+        
+        var dirMtx = new THREE.Matrix4();
+        dirMtx.makeRotationFromQuaternion(ori);
+        
+        var push = new THREE.Vector3(0, 0, -1.0);
+        push.transformDirection(dirMtx);
+        pos.addScaledVector(push, 0.5);
+        
+        // Clone our cube object and place it at the camera's
+        // current position
+        // if(prevModel){
+        //         scene.remove(prevModel); 
+        //     }
+        var clone = model.clone();
+        scene.add(clone);
+        clone.position.copy(pos);
+        clone.quaternion.copy(ori);
+        //prevModel = clone;
+    }
+
     
     </script>
-
-
 </body>
-
 </html>
