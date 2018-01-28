@@ -357,7 +357,14 @@
         // boxesAdded = true;
         // }
 
-    function onClick () {
+    function onClick (event) {
+
+        e = event.originalEvent; 
+
+        if (e.touches.length > 1 && cubes.length > 0) {
+            alert('double tap! : ' + event.target); 
+            return;
+        }
         // Fetch the pose data from the current frame
         var pose = vrFrameData.pose;
         
