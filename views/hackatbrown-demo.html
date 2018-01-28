@@ -1,0 +1,342 @@
+<!--
+/*
+ ************* STEP 1 ***************
+ * Project is remixed from the public, boilerplate.html
+ ************************************
+ */
+-->
+
+<!--
+/*
+ * Copyright 2017 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>three.ar.js - Hack@Brown Demo</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no,
+  minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      font-family: monospace;
+      margin: 0;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      height: 100vh;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #info {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translate(-50%, 0);
+      margin: 1em;
+      z-index: 10;
+      display: block;
+      line-height: 2em;
+      text-align: center;
+    }
+    #info * {
+      color: #fff;
+    }
+    .title {
+      background-color: rgba(40, 40, 40, 0.4);
+      padding: 0.4em 0.6em;
+      border-radius: 0.1em;
+    }
+    .links {
+      background-color: rgba(40, 40, 40, 0.6);
+      padding: 0.4em 0.6em;
+      border-radius: 0.1em;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+<div id="info">
+    <!--
+    /*
+     ************* STEP 2 ***************
+     * Found a model on poly.google.com that I wanted to incorporate,
+     * gave credit to the creator of the model.
+     ************************************
+     */
+    -->
+    <span class="title">Spinning Dinos</span><br/>
+    <span class="links">
+      Model by
+      <a href="https://poly.google.com/view/5iV5SPhBu26">Poly by Google</a>
+    </span>
+</div>
+<script src="../third_party/three.js/three.js"></script>
+<script src="../third_party/three.js/VRControls.js"></script>
+<!--
+/*
+ ************* STEP 3 ***************
+ * Imported OBJLoader.js and MTLLoader.js for model loading.
+ * OBJLoader loads the model (.obj), MTLLoader loads the materials
+ * that are associated with the model (.mtl).
+ ************************************
+ */
+-->
+<script src="../third_party/three.js/OBJLoader.js"></script>
+<script src="../third_party/three.js/MTLLoader.js"></script>
+<script src="../dist/three.ar.js"></script>
+<script>
+
+var vrDisplay, vrControls, arView;
+var canvas, camera, scene, renderer;
+var DINO_DISTANCE = 1.5;
+var DINO_QUANTITY = 6;
+var dinosAdded = false;
+var model;
+var dinosGroup;
+
+
+/**
+ * Use the `getARDisplay()` utility to leverage the WebVR API
+ * to see if there are any AR-capable WebVR VRDisplays. Returns
+ * a valid display if found. Otherwise, display the unsupported
+ * browser message.
+ */
+THREE.ARUtils.getARDisplay().then(function (display) {
+  if (display) {
+    vrDisplay = display;
+    init();
+  } else {
+    THREE.ARUtils.displayUnsupportedMessage();
+  }
+});
+
+function init() {
+  // Setup the three.js rendering environment
+  renderer = new THREE.WebGLRenderer({ alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.autoClear = false;
+  canvas = renderer.domElement;
+  document.body.appendChild(canvas);
+  scene = new THREE.Scene();
+
+  // Creating the ARView, which is the object that handles
+  // the rendering of the camera stream behind the three.js
+  // scene
+  arView = new THREE.ARView(vrDisplay, renderer);
+
+  // The ARPerspectiveCamera is very similar to THREE.PerspectiveCamera,
+  // except when using an AR-capable browser, the camera uses
+  // the projection matrix provided from the device, so that the
+  // perspective camera's depth planes and field of view matches
+  // the physical camera on the device.
+  camera = new THREE.ARPerspectiveCamera(
+    vrDisplay,
+    60,
+    window.innerWidth / window.innerHeight,
+    vrDisplay.depthNear,
+    vrDisplay.depthFar
+  );
+
+  // VRControls is a utility from three.js that applies the device's
+  // orientation/position to the perspective camera, keeping our
+  // real world and virtual world in sync.
+  vrControls = new THREE.VRControls(camera);
+
+  // Bind our event handlers
+  window.addEventListener('resize', onWindowResize, false);
+
+  addLights();
+  loadDinosaurModel();
+  // Kick off the render loop!
+  update();
+}
+
+// ************* STEP 6 ***************
+// * Added lights to the scene because the object's materials
+// * need light to be able to reflect color.
+// ************************************
+function addLights() {
+  var directionalLight = new THREE.DirectionalLight();
+  directionalLight.intensity = 0.3;
+  directionalLight.position.set(10, 15, 10);
+  // We want this light to cast shadow
+  directionalLight.castShadow = true;
+  var light = new THREE.AmbientLight();
+  scene.add(light);
+  scene.add(directionalLight);
+}
+
+// ************* STEP 4 ***************
+// * Wrote function to load the model (loadDinosaurModel())
+// * made sure that it got called in the init function
+// ************************************
+var OBJ_PATH = '../models/model.obj';
+var MTL_PATH = '../models/materials.mtl';
+var SCALE = .3;
+
+function loadDinosaurModel() {
+  THREE.ARUtils.loadModel({
+    objPath: OBJ_PATH,
+    mtlPath: MTL_PATH
+  // .then(function ...) is used with 'Promise's. A promise
+  // is an object that holds another object, which may not be
+  // ready for use right away (contained object is asynchronous).
+  // Therefore, when the inner object is ready, the '.then(function ...'
+  // is able to run. The parameter to the function is the completed
+  // object.
+  }).then(function(group) {
+    // model is going to be an THREE.Object3D
+    model = group;
+    // As OBJ models may contain a group with several meshes,
+    // we want all of them to cast shadow
+    model.children.forEach(function(mesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+
+    model.scale.set(SCALE, SCALE, SCALE);
+    addDinosaurs();
+  });
+}
+
+
+// ************* STEP 5 ***************
+// * Added the dinosaurs to the scene.
+// * Made sure that it, addDinosaurs(), was called after the
+// * model was loaded at the bottom of loadDinosaurModel().
+// ************************************
+function addDinosaurs() {
+  dinosGroup = new THREE.Group();
+  for (var i = 0; i < DINO_QUANTITY; i++) {
+    var angle = Math.PI * 2 * (i / DINO_QUANTITY);
+    var clone = model.clone();
+
+    // ************* STEP 7 ***************
+    // * Models face the camera by changing rotation about
+    // * the y-axis.
+    // ************************************
+    clone.rotation.y = -angle;
+    // note that 0.0 (for height) will be around the height of your phone at init
+    clone.position.set(Math.cos(angle) * DINO_DISTANCE, 0.0, Math.sin(angle) * DINO_DISTANCE);
+    dinosGroup.add(clone);
+  }
+
+  scene.add(dinosGroup);
+  // Flip this switch so that we only perform this once
+  dinosAdded = true;
+}
+
+/**
+ * The render loop, called once per frame. Handles updating
+ * our scene and rendering.
+ */
+function update() {
+  // Clears color from the frame before rendering the camera (arView) or scene.
+  renderer.clearColor();
+
+  // Render the device's camera stream on screen first of all.
+  // It allows to get the right pose synchronized with the right frame.
+  arView.render();
+
+  // Update our camera projection matrix in the event that
+  // the near or far planes have updated
+  camera.updateProjectionMatrix();
+
+  // Update our perspective camera's positioning
+  vrControls.update();
+
+  if (dinosAdded) {
+    // ************* STEP 9 ***************
+    // * We want the whole ring of dinosaurs to spin.
+    // * Imagine the idea that you, a human, are spinning in place
+    // * while the world is spinning about its own axis at the same time.
+    // * This line of code is making the world spin.
+    // ************************************
+    dinosGroup.rotation.y += .01;
+    // for each dinosaur in the dinosaur group
+    dinosGroup.children.forEach(dino => {
+      // ************* STEP 8 ***************
+      // * Spin dinosaurs, spin! I rotate the individual
+      // * dinosaurs by incrementing their y-axis rotation on every tick.
+      // * This update() function runs constantly, so the small increments
+      // * make the motion look smooth.
+      // ************************************
+      dino.rotation.y += .1;
+
+      // ************* STEP 10 ***************
+      // * Example of how to further explore fun movements of
+      // * objects in space. Sine and Cosine functions are great movement
+      // * curves for objects because of their natural smoothness (0,1).
+      // * The result of the next 5 lines of code make the dinosaurs
+      // * bob up and down along a sine wave that is based on their
+      // * position along the world's x-axis.
+      // ************************************
+      // prepare a variable to hold the object's world-position
+      var worldPosition = new THREE.Vector3();
+      // get the dinosaurs position in the world
+      worldPosition.setFromMatrixPosition(dino.matrixWorld);
+
+      var freq = 7; // how long a wave is
+      var amp = .15; // how tall a wave is
+      // set the dinosaurs position to be the result of the sin wave
+      dino.position.y = Math.sin(worldPosition.x * freq) * amp;
+
+      // NOTE: dino.position is relative to the THREE.Group, dinosGroup
+      // whereas worldPosition.setFromMatrixPosition(dino.matrixWorld)
+      // is the absolute position of the dino in the world.
+      // If dino wasn't a child of another object, it's position would
+      // be equal to its world position.
+      //
+      // REAL WORLD EXAMPLE: if you're standing in Sayles Hall,
+      // your position might be (x: 5ft left of center, z: 30ft
+      // from the door), but when you incorporate that Sayles hall is
+      // 100000000000ft left and 1000005654ft forward from the center
+      // of the Earth, your Earth position is actually:
+      // 100000000000ft + 5ft left and 1000005654ft + 30ft forward.
+      //
+      // So, Sayles position is equivalent to dino.position, and
+      // dino.matrixWorld tells you the absolute picture.
+    });
+  }
+
+  // Render our three.js virtual scene
+  renderer.clearDepth();
+  renderer.render(scene, camera);
+
+  // Kick off the requestAnimationFrame to call this function
+  // when a new VRDisplay frame is rendered
+  vrDisplay.requestAnimationFrame(update);
+}
+
+/**
+ * On window resize, update the perspective camera's aspect ratio,
+ * and call `updateProjectionMatrix` so that we can get the latest
+ * projection matrix provided from the device
+ */
+function onWindowResize () {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+</script>
+</body>
+</html>
